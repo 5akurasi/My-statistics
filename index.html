@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistics</title>
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/432/432548.png" type="image/x-icon">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+        }
+        input, button, select {
+            padding: 10px;
+            margin: 10px 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            cursor: grab;
+        }
+        .entry span {
+            font-size: 18px;
+        }
+        .important {
+            font-size: 24px;
+            font-weight: bold;
+            color: red;
+            text-align: center;
+        }
+        .medium-importance {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007B8C;
+            text-align: center;
+        }
+        .edit-btn {
+            cursor: pointer;
+            color: blue;
+        }
+        .delete-btn {
+            cursor: pointer;
+            color: red;
+        }
+        .edit-form {
+            display: none;
+            flex-direction: column;
+            margin-top: 10px;
+        }
+        .edit-form input {
+            margin: 5px 0;
+            width: 100%;
+        }
+        .edit-form button {
+            margin-top: 10px;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>My Statistics</h1>
+        <label for="record-name">Record Name:</label>
+        <input type="text" id="record-name" placeholder="Name">
+        
+        <label for="record-value">Numerical Value:</label>
+        <input type="number" id="record-value" placeholder="Number">
+        
+        <label for="record-importance">Select Importance:</label>
+        <select id="record-importance">
+            <option value="1">1 - Low</option>
+            <option value="2">2 - Medium</option>
+            <option value="3">3 - High</option>
+        </select>
+
+        <button id="add-record">Add Record</button>
+
+        <h2>My Records:</h2>
+        <div id="record-list" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+    </div>
+
+    <div class="modal" id="edit-modal">
+        <div class="modal-content">
+            <h3>Edit Record</h3>
+            <label for="new-name">New Name:</label>
+            <input type="text" id="new-name" placeholder="New name">
+            
+            <label for="new-value">New Value:</label>
+            <input type="number" id="new-value" placeholder="New value">
+
+            <button id="save-changes">Save Changes</button>
+            <button id="close-modal">Close</button>
+        </div>
+    </div>
+
+    <div class="modal" id="confirm-delete-modal">
+        <div class="modal-content">
+            <h3>Are you sure you want to delete this record?</h3>
+            <button id="confirm-delete">Yes, Delete</button>
+            <button id="close-delete-modal">No, Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        let editingIndex = null;
+        let deletingIndex = null;
+
+        function loadRecords() {
+            const records = JSON.parse(localStorage.getItem('records')) || [];
+            const recordList = document.getElementById('record-list');
+            recordList.innerHTML = '';
+
+            records.forEach((record, index) => {
+                const div = document.createElement('div');
+                div.classList.add('entry');
+                div.setAttribute('draggable', true);
+                div.setAttribute('data-index', index);
+                div.setAttribute('ondragstart', 'drag(event)');
+                div.setAttribute('ondragover', 'allowDrop(event)');
+                div.setAttribute('ondrop', 'drop(event)');
+
+                if (record.importance === 3) {
+                    div.classList.add('important');
+                } else if (record.importance === 2) {
+                    div.classList.add('medium-importance');
+                }
+
+                div.innerHTML = `
+                    <span>${record.name}: ${record.value}</span>
+                    <span class="edit-btn" onclick="openEditModal(${index})">Edit</span>
+                    <span class="delete-btn" onclick="openDeleteModal(${index})">Delete</span>
+                `;
+
+                recordList.appendChild(div);
+            });
+        }
+
+        document.getElementById('add-record').onclick = function () {
+            const name = document.getElementById('record-name').value.trim();
+            const value = document.getElementById('record-value').value.trim();
+            const importance = parseInt(document.getElementById('record-importance').value, 10);
+
+            if (name && value) {
+                const records = JSON.parse(localStorage.getItem('records')) || [];
+
+                // Проверка на уникальность имени
+                const existingRecord = records.find(record => record.name.toLowerCase() === name.toLowerCase());
+                if (existingRecord) {
+                    alert('A record with this name already exists!');
+                    return;
+                }
+
+                records.push({ name, value: parseInt(value, 10), importance });
+                localStorage.setItem('records', JSON.stringify(records));
+                loadRecords();
+            }
+        };
+
+        function openEditModal(index) {
+            const records = JSON.parse(localStorage.getItem('records'));
+            const record = records[index];
+
+            document.getElementById('new-name').value = record.name;
+            document.getElementById('new-value').value = record.value;
+            editingIndex = index;
+
+            const modal = document.getElementById('edit-modal');
+            modal.style.display = 'flex';
+        }
+
+        document.getElementById('save-changes').onclick = function () {
+            const newName = document.getElementById('new-name').value.trim();
+            const newValue = document.getElementById('new-value').value.trim();
+
+            if (newName && newValue) {
+                const records = JSON.parse(localStorage.getItem('records'));
+                records[editingIndex].name = newName;
+                records[editingIndex].value = parseInt(newValue, 10);
+                localStorage.setItem('records', JSON.stringify(records));
+                loadRecords();
+                closeEditModal();
+            }
+        };
+
+        document.getElementById('close-modal').onclick = closeEditModal;
+
+        function closeEditModal() {
+            const modal = document.getElementById('edit-modal');
+            modal.style.display = 'none';
+        }
+
+        function openDeleteModal(index) {
+            deletingIndex = index;
+            const modal = document.getElementById('confirm-delete-modal');
+            modal.style.display = 'flex';
+        }
+
+        document.getElementById('confirm-delete').onclick = function () {
+            const records = JSON.parse(localStorage.getItem('records'));
+            records.splice(deletingIndex, 1);
+            localStorage.setItem('records', JSON.stringify(records));
+            loadRecords();
+            closeDeleteModal();
+        };
+
+        document.getElementById('close-delete-modal').onclick = closeDeleteModal;
+
+        function closeDeleteModal() {
+            const modal = document.getElementById('confirm-delete-modal');
+            modal.style.display = 'none';
+        }
+
+        function allowDrop(event) {
+            event.preventDefault();
+        }
+
+        function drag(event) {
+            event.dataTransfer.setData("text", event.target.getAttribute('data-index'));
+        }
+
+        function drop(event) {
+            event.preventDefault();
+            const draggedIndex = event.dataTransfer.getData("text");
+            const targetIndex = event.target.getAttribute('data-index');
+
+            if (draggedIndex !== targetIndex) {
+                const records = JSON.parse(localStorage.getItem('records'));
+                const draggedRecord = records[draggedIndex];
+                records.splice(draggedIndex, 1);
+                records.splice(targetIndex, 0, draggedRecord);
+                localStorage.setItem('records', JSON.stringify(records));
+                loadRecords();
+            }
+        }
+
+        loadRecords();
+    </script>
+</body>
+</html>
